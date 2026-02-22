@@ -1,0 +1,48 @@
+{
+  "name": "TypeScript Exercises",
+
+  // Node.js 20 のイメージを使用
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bookworm",
+
+  "features": {},
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "github.copilot.enable": {
+          "typescript": false
+        },
+        "search.exclude": {
+          "**/node_modules": true,
+          "**/bower_components": true,
+          "**/*.code-search": true,
+          "pnpm-lock.yaml": true,
+          "**/dist": true
+        },
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "typescript.format.semicolons": "remove",
+        "javascript.format.semicolons": "remove",
+        "prettier.enable": false,
+        "editor.formatOnSave": false
+      },
+      "extensions": [
+        "streetsidesoftware.code-spell-checker",
+        "yzhang.markdown-all-in-one",
+        "DavidAnson.vscode-markdownlint",
+        "ms-vscode.vscode-typescript-next",
+        "yoavbls.pretty-ts-errors"
+      ]
+    }
+  },
+
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  // リモート接続終了時にコンテナを自動削除
+  "runArgs": ["--rm"],
+
+  "containerEnv": {
+    "TZ": "Asia/Tokyo"
+  },
+
+  "remoteUser": "node"
+}

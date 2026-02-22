@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "allowJs": false,
+    "noEmit": true,
+
+    // 厳格な型チェック設定
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+
+    // パス設定
+    "baseUrl": ".",
+    "paths": {
+      "type-assertions": ["original-typescript-exercises/src/exercises/node_modules/type-assertions/index"]
+    }
+  },
+  "include": [
+    "solutions/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "original-typescript-exercises",
+    "dist"
+  ]
+}

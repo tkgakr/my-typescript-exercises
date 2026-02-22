@@ -1,0 +1,3 @@
+[submodule "original-typescript-exercises"]
+	path = original-typescript-exercises
+	url = https://github.com/typescript-exercises/typescript-exercises.git
