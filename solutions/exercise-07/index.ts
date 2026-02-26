@@ -84,28 +84,28 @@ export function swap<T1, T2>(v1: T1, v2: T2): [T2, T1] {
 
 function test1() {
     console.log('test1:');
-    const [secondUser, firstAdmin] = swap(admins[0], users[1]);
+    const [secondUser, firstAdmin] = swap(admins[0]!, users[1]!);
     logUser(secondUser);
     logAdmin(firstAdmin);
 }
 
 function test2() {
     console.log('test2:');
-    const [secondAdmin, firstUser] = swap(users[0], admins[1]);
+    const [secondAdmin, firstUser] = swap(users[0]!, admins[1]!);
     logAdmin(secondAdmin);
     logUser(firstUser);
 }
 
 function test3() {
     console.log('test3:');
-    const [secondUser, firstUser] = swap(users[0], users[1]);
+    const [secondUser, firstUser] = swap(users[0]!, users[1]!);
     logUser(secondUser);
     logUser(firstUser);
 }
 
 function test4() {
     console.log('test4:');
-    const [firstAdmin, secondAdmin] = swap(admins[1], admins[0]);
+    const [firstAdmin, secondAdmin] = swap(admins[1]!, admins[0]!);
     logAdmin(firstAdmin);
     logAdmin(secondAdmin);
 }
