@@ -24,7 +24,8 @@
     "noUnusedParameters": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
+    // No7 で、
+    // "noUncheckedIndexedAccess": true,
 
     // パス設定
     "baseUrl": ".",
