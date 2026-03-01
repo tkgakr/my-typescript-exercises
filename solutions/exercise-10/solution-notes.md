@@ -82,6 +82,9 @@ export function promisifyAll<T extends {[key: string]: any}>(obj: SourceObject<T
 
 - [TypeScript Generics](https://www.typescriptlang.org/docs/handbook/2/generics.html)
 - [Mapped Types](https://www.typescriptlang.org/docs/handbook/2/mapped-types.html)
+- [コールバック関数 (callback functions) | TypeScript入門『サバイバルTypeScript』](https://typescriptbook.jp/reference/functions/callback-functions)
+- [Promise<T> | TypeScript入門『サバイバルTypeScript』](https://typescriptbook.jp/reference/asynchronous/promise)
+- 
 
 ---
 *Generated at 2026-03-01 10:38:08*
