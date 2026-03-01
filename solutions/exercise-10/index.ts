@@ -73,10 +73,10 @@ export type ApiResponse<T> = (
 );
 
 type CallbackBasedAsyncFunction<T> = (callback: (response: ApiResponse<T>) => void) => void;
-type PromisePasedAsyncFunction<T> = () => Promise<T>;
+type PromiseBasedAsyncFunction<T> = () => Promise<T>;
 
 // コールバックベースの関数を、Promise 対応にラップするデコレーター関数
-export function promisify<T>(fn: CallbackBasedAsyncFunction<T>): PromisePasedAsyncFunction<T> {
+export function promisify<T>(fn: CallbackBasedAsyncFunction<T>): PromiseBasedAsyncFunction<T> {
     return () => new Promise<T>((resolve, reject) => {
         fn((response) => {
             if (response.status === 'success') {
@@ -86,6 +86,18 @@ export function promisify<T>(fn: CallbackBasedAsyncFunction<T>): PromisePasedAsy
             }
         });
     });
+}
+
+type SourceObject<T> = {[K in keyof T]: CallbackBasedAsyncFunction<T[K]>};
+type PromisifiedObject<T> = {[K in keyof T]: PromiseBasedAsyncFunction<T[K]>};
+
+// 複数の関数を持つオブジェクトを受け取り、全ての関数が promisify された新しいオブジェクトを返す
+export function promisifyAll<T extends {[key: string]: any}>(obj: SourceObject<T>): PromisifiedObject<T> {
+    const result: Partial<PromisifiedObject<T>> = {};
+    for (const key of Object.keys(obj) as (keyof T)[]) {
+        result[key] = promisify(obj[key]);
+    }
+    return result as PromisifiedObject<T>;
 }
 
 const oldApi = {
@@ -115,12 +127,7 @@ const oldApi = {
     }
 };
 
-export const api = {
-    requestAdmins: promisify(oldApi.requestAdmins),
-    requestUsers: promisify(oldApi.requestUsers),
-    requestCurrentServerTime: promisify(oldApi.requestCurrentServerTime),
-    requestCoffeeMachineQueueLength: promisify(oldApi.requestCoffeeMachineQueueLength)
-};
+export const api = promisifyAll(oldApi);
 
 function logPerson(person: Person) {
     console.log(
