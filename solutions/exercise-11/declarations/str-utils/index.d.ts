@@ -1,7 +1,9 @@
 declare module 'str-utils' {
-    export function strReverse(value: string): string;
-    export function strToLower(value: string): string;
-    export function strToUpper(value: string): string;
-    export function strRandomize(value: string): string;
-    export function strInvertCase(value: string): string;
+    type StrUtil = (value: string) => string;
+
+    export const strReverse: StrUtil;
+    export const strToLower: StrUtil;
+    export const strToUpper: StrUtil;
+    export const strRandomize: StrUtil;
+    export const strInvertCase: StrUtil;
 }

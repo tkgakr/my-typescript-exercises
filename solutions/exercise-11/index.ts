@@ -83,7 +83,7 @@ function logPerson(person: Person) {
     }
     const randomNameDecorator = nameDecorators[
         Math.round(Math.random() * (nameDecorators.length - 1))
-    ];
+    ]!;
     const name = randomNameDecorator(person.name);
     console.log(
         ` - ${name}, ${person.age}, ${additionalInformation}`
