@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+!solutions/**/node_modules/
+!solutions/**/node_modules/**
 
 # Build outputs
 dist/

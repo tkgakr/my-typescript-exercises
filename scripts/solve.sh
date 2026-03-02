@@ -59,20 +59,13 @@ fi
 
 mkdir -p "$SOLUTION_DIR"
 
-# index.ts をコピー（テンプレート）
-if [ -f "${EXERCISE_SRC}/index.ts" ]; then
-    cp "${EXERCISE_SRC}/index.ts" "${SOLUTION_DIR}/index.ts"
-    echo -e "${GREEN}  ✅ index.ts をコピーしました${NC}"
+# エクササイズ一式を再帰コピー（index.solution.* は除外）
+if command -v rsync >/dev/null 2>&1; then
+    rsync -a --exclude='index.solution.*' "${EXERCISE_SRC}/" "${SOLUTION_DIR}/"
+    echo -e "${GREEN}  ✅ エクササイズファイルをコピーしました（index.solution.* を除外）${NC}"
 else
-    echo -e "${YELLOW}  ⚠️  index.ts が見つかりません${NC}"
-fi
-
-# test.ts をコピー
-if [ -f "${EXERCISE_SRC}/test.ts" ]; then
-    cp "${EXERCISE_SRC}/test.ts" "${SOLUTION_DIR}/test.ts"
-    echo -e "${GREEN}  ✅ test.ts をコピーしました${NC}"
-else
-    echo -e "${YELLOW}  ⚠️  test.ts が見つかりません${NC}"
+    echo -e "${RED}❌ rsync コマンドが見つかりません${NC}"
+    exit 1
 fi
 
 # solution-notes.md を生成
