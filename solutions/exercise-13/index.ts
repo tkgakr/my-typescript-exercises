@@ -1,4 +1,4 @@
-import * as dateWizard from 'date-wizard';
+import dateWizard from 'date-wizard';
 import './module-augmentations/date-wizard';
 
 /*
