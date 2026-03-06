@@ -30,7 +30,8 @@
     // パス設定
     "baseUrl": ".",
     "paths": {
-      "type-assertions": ["original-typescript-exercises/src/exercises/node_modules/type-assertions/index"]
+      "type-assertions": ["original-typescript-exercises/src/exercises/node_modules/type-assertions/index"],
+      "type-assertions/*": ["original-typescript-exercises/src/exercises/node_modules/type-assertions/*"]
     }
   },
   "include": [
