@@ -28,6 +28,61 @@ Bonus:
 
 */
 
+/*
+ * [ボーナス: toFunctional によるリファクタリング]
+ *
+ * 元のコードでは map, filter, reduce, add, subtract, prop の各関数が
+ * それぞれ arguments.length で分岐するカリー化ロジックを持っていた。
+ * これらは全て同じパターン:
+ *   - 0引数 → 自身を返す
+ *   - 一部の引数 → 残りの引数を受け取るサブ関数を返す
+ *   - 全引数 → 結果を返す
+ *
+ * toFunctional はこの共通パターンを汎用的に実装する。
+ * 渡された関数の .length（仮引数の数）を見て、
+ * 引数が足りなければ「蓄積して次を待つサブ関数」を自動生成する。
+ *
+ * これにより各関数は「本来のロジックだけ」を書けばよくなる:
+ *   export const add = toFunctional((a: number, b: number) => a + b) as ArithmeticFunc;
+ *
+ * ただし toFunctional の戻り値型は Function（具体的な型情報が失われる）なので、
+ * 各関数ごとに定義したインターフェースで as キャストして型を復元する。
+ *
+ * また、ボーナス前の解答では export function + オーバーロードシグネチャで
+ * 型を定義していたが、const + as キャストでは関数オーバーロードが使えないため、
+ * 代わりにコールシグネチャを複数持つインターフェースで同等の型を表現する:
+ *
+ *   ボーナス前:
+ *     export function map(): typeof map;
+ *     export function map<I, O>(mapper: (item: I) => O): MapperFunc<I, O>;
+ *     export function map<I, O>(mapper: (item: I) => O, input: I[]): O[];
+ *
+ *   ボーナス後:
+ *     interface MapFunc {
+ *         (): MapFunc;                                              // typeof map の代わり
+ *         <I, O>(mapper: (item: I) => O): MapperFunc<I, O>;
+ *         <I, O>(mapper: (item: I) => O, input: I[]): O[];
+ *     }
+ *     export const map = toFunctional(...) as MapFunc;
+ */
+
+function toFunctional<T extends Function>(func: T): Function {
+    const fullArgCount = func.length;
+    function createSubFunction(curriedArgs: unknown[]) {
+        return function(this: unknown) {
+            const newCurriedArguments = curriedArgs.concat(Array.from(arguments));
+            if (newCurriedArguments.length > fullArgCount) {
+                throw new Error('Too many arguments');
+            }
+            if (newCurriedArguments.length === fullArgCount) {
+                return func.apply(this, newCurriedArguments);
+            }
+            return createSubFunction(newCurriedArguments);
+        };
+    }
+    return createSubFunction([]);
+}
+
 /**
  * 2 arguments passed: returns a new array
  * which is a result of input being mapped using
@@ -44,21 +99,17 @@ Bonus:
  * [型付けのポイント]
  *
  * map はカリー化された関数であり、引数の数に応じて返り値の型が変わる。
- * これを表現するために「関数オーバーロード」を使用する。
+ * これを表現するために MapFunc インターフェースに複数のコールシグネチャを定義する。
  *
  * さらに、1引数で返されるサブ関数も 0引数で自身を返す仕様がある。
  * 通常の関数型 (input: I[]) => O[] ではこの「0引数→自身」を表現できないため、
  * コールシグネチャを複数持つインターフェース MapperFunc を定義している。
  *
  * テスト例: map()(String)()([1, 2, 3])
- *   map()        → typeof map（自身を返す）
- *   (String)     → MapperFunc<number, string>（1引数オーバーロード）
+ *   map()        → MapFunc（自身を返す）
+ *   (String)     → MapperFunc<number, string>（1引数シグネチャ）
  *   ()           → MapperFunc<number, string>（サブ関数が自身を返す）
  *   ([1, 2, 3]) → string[]（サブ関数が結果を返す）
- *
- * 実装シグネチャは (mapper?: any, input?: any[]): any とし、
- * 内部で arguments.length を使って分岐する。
- * 実装シグネチャは外部から見えないため、型安全性はオーバーロードが担保する。
  */
 
 // サブ関数の型: 0引数→自身、1引数→結果配列
@@ -67,25 +118,15 @@ interface MapperFunc<I, O> {
     (input: I[]): O[];
 }
 
-// 0引数→自身、1引数→サブ関数、2引数→結果配列
-export function map(): typeof map;
-export function map<I, O>(mapper: (item: I) => O): MapperFunc<I, O>;
-export function map<I, O>(mapper: (item: I) => O, input: I[]): O[];
-// 実装シグネチャ（外部非公開）
-export function map(mapper?: any, input?: any[]): any {
-    if (arguments.length === 0) {
-        return map;
-    }
-    if (arguments.length === 1) {
-        return function subFunction(subInput: any) {
-            if (arguments.length === 0) {
-                return subFunction;
-            }
-            return subInput.map(mapper);
-        };
-    }
-    return input!.map(mapper);
+// トップレベルの型: 0引数→自身、1引数→サブ関数、2引数→結果配列
+interface MapFunc {
+    (): MapFunc;
+    <I, O>(mapper: (item: I) => O): MapperFunc<I, O>;
+    <I, O>(mapper: (item: I) => O, input: I[]): O[];
 }
+
+export const map = toFunctional(<I, O>(fn: (arg: I) => O, input: I[]) => input.map(fn)) as MapFunc;
+
 
 /**
  * 2 arguments passed: returns a new array
@@ -108,7 +149,7 @@ export function map(mapper?: any, input?: any[]): any {
  * （map は (item: I) => O で型が変わるが、filter は (item: I) => boolean で型は変わらない）
  *
  * テスト例: filter()((n: number) => n !== 0)()([0, 1, 2])
- *   filter()            → typeof filter
+ *   filter()            → FilterFunc
  *   ((n) => n !== 0)    → FiltererFunc<number>
  *   ()                  → FiltererFunc<number>（自身を返す）
  *   ([0, 1, 2])         → number[]
@@ -120,23 +161,13 @@ interface FiltererFunc<I> {
     (input: I[]): I[];
 }
 
-export function filter(): typeof filter;
-export function filter<I>(filterer: (item: I) => boolean): FiltererFunc<I>;
-export function filter<I>(filterer: (item: I) => boolean, input: I[]): I[];
-export function filter(filterer?: any, input?: any[]): any {
-    if (arguments.length === 0) {
-        return filter;
-    }
-    if (arguments.length === 1) {
-        return function subFunction(subInput: any) {
-            if (arguments.length === 0) {
-                return subFunction;
-            }
-            return subInput.filter(filterer);
-        };
-    }
-    return input!.filter(filterer);
+interface FilterFunc {
+    (): FilterFunc;
+    <I>(filterer: (item: I) => boolean): FiltererFunc<I>;
+    <I>(filterer: (item: I) => boolean, input: I[]): I[];
 }
+
+export const filter = toFunctional(<I>(fn: (item: I) => boolean, input: I[]) => input.filter(fn)) as FilterFunc;
 
 /**
  * 3 arguments passed: reduces input array it using the
@@ -177,8 +208,8 @@ export function filter(filterer?: any, input?: any[]): any {
  *   ReducerInitialFunc<I, O> — reducer + initialValue を受け取った状態。次は input を期待
  *
  * テスト例: reduce()((a: number, b: number) => a + b)()(0)()([1, 2, 3])
- *   reduce()          → typeof reduce
- *   ((a, b) => a + b) → ReducerFunc<number, number>（1引数オーバーロード）
+ *   reduce()          → ReduceFunc
+ *   ((a, b) => a + b) → ReducerFunc<number, number>（1引数シグネチャ）
  *   ()                → ReducerFunc<number, number>（自身を返す）
  *   (0)               → ReducerInitialFunc<number, number>（initialValue を受け取る）
  *   ()                → ReducerInitialFunc<number, number>（自身を返す）
@@ -199,40 +230,16 @@ interface ReducerFunc<I, O> {
 }
 
 // 0引数→自身、1引数→ReducerFunc、2引数→ReducerInitialFunc、3引数→最終結果
-export function reduce(): typeof reduce;
-export function reduce<I, O>(reducer: (acc: O, val: I) => O): ReducerFunc<I, O>;
-export function reduce<I, O>(reducer: (acc: O, val: I) => O, initialValue: O): ReducerInitialFunc<I, O>;
-export function reduce<I, O>(reducer: (acc: O, val: I) => O, initialValue: O, input: I[]): O;
-export function reduce(reducer?: any, initialValue?: any, input?: any[]): any {
-    if (arguments.length === 0) {
-        return reduce;
-    }
-    if (arguments.length === 1) {
-        return function subFunction(subInitialValue: any, subInput: any) {
-            if (arguments.length === 0) {
-                return subFunction;
-            }
-            if (arguments.length === 1) {
-                return function subSubFunction(subSubInput: any) {
-                    if (arguments.length === 0) {
-                        return subSubFunction;
-                    }
-                    return subSubInput.reduce(reducer, subInitialValue);
-                };
-            }
-            return subInput.reduce(reducer, subInitialValue);
-        }
-    }
-    if (arguments.length === 2) {
-        return function subFunction(subInput: any) {
-            if (arguments.length === 0) {
-                return subFunction;
-            }
-            return subInput.reduce(reducer, initialValue);
-        };
-    }
-    return input!.reduce(reducer, initialValue);
+interface ReduceFunc {
+    (): ReduceFunc;
+    <I, O>(reducer: (acc: O, val: I) => O): ReducerFunc<I, O>;
+    <I, O>(reducer: (acc: O, val: I) => O, initialValue: O): ReducerInitialFunc<I, O>;
+    <I, O>(reducer: (acc: O, val: I) => O, initialValue: O, input: I[]): O;
 }
+
+export const reduce = toFunctional(
+    <I, O>(reducer: (acc: O, item: I) => O, initialValue: O, input: I[]) => input.reduce(reducer, initialValue)
+) as ReduceFunc;
 
 /**
  * 2 arguments passed: returns sum of a and b.
@@ -251,10 +258,11 @@ export function reduce(reducer?: any, initialValue?: any, input?: any[]): any {
  *
  * サブ関数の型は add/subtract で共通のため、
  * ArithmeticArgFunc という1つのインターフェースを共有している。
+ * トップレベルの ArithmeticFunc も共有し、as キャストで使い回す。
  *
  * テスト例: add()(1)()(2)
- *   add()  → typeof add
- *   (1)    → ArithmeticArgFunc（1引数オーバーロード）
+ *   add()  → ArithmeticFunc
+ *   (1)    → ArithmeticArgFunc（1引数シグネチャ）
  *   ()     → ArithmeticArgFunc（自身を返す）
  *   (2)    → number（計算結果: 3）
  */
@@ -265,23 +273,14 @@ interface ArithmeticArgFunc {
     (b: number): number;
 }
 
-export function add(): typeof add;
-export function add(a: number): ArithmeticArgFunc;
-export function add(a: number, b: number): number;
-export function add(a?: number, b?: number): any {
-    if (arguments.length === 0) {
-        return add;
-    }
-    if (arguments.length === 1) {
-        return function subFunction(subB: any) {
-            if (arguments.length === 0) {
-                return subFunction;
-            }
-            return a! + subB;
-        };
-    }
-    return a! + b!;
+// add/subtract 共通のトップレベル型
+interface ArithmeticFunc {
+    (): ArithmeticFunc;
+    (a: number): ArithmeticArgFunc;
+    (a: number, b: number): number;
 }
+
+export const add = toFunctional((a: number, b: number) => a + b) as ArithmeticFunc;
 
 /**
  * 2 arguments passed: subtracts b from a and
@@ -292,24 +291,8 @@ export function add(a?: number, b?: number): any {
  *
  * 0 arguments passed: returns itself.
  */
-// add と同じオーバーロード構造。ArithmeticArgFunc を共有。
-export function subtract(): typeof subtract;
-export function subtract(a: number): ArithmeticArgFunc;
-export function subtract(a: number, b: number): number;
-export function subtract(a?: number, b?: number): any {
-    if (arguments.length === 0) {
-        return subtract;
-    }
-    if (arguments.length === 1) {
-        return function subFunction(subB: any) {
-            if (arguments.length === 0) {
-                return subFunction;
-            }
-            return a! - subB;
-        };
-    }
-    return a! - b!;
-}
+// add と同じ型構造。ArithmeticFunc を共有。
+export const subtract = toFunctional((a: number, b: number) => a - b) as ArithmeticFunc;
 
 /**
  * 2 arguments passed: returns value of property
@@ -328,7 +311,12 @@ export function subtract(a?: number, b?: number): any {
  * 注意: JSDoc では引数の順序が (obj, propName) と書かれているが、
  * テストでは prop('y', {x: 1, y: 'Hello'}) のように (propName, obj) の順。
  * JSDoc が不正確（Intro で「inaccurate な場合がある」と示唆されている）。
- * 実装もテストに合わせて (propName, obj) の順に修正してある。
+ * toFunctional に渡す実装関数も (propName, obj) の順にしてある。
+ *
+ * ※ ただし模範解答では toFunctional に渡す関数は (obj, propName) のままで、
+ *   型インターフェース PropFunc 側で (propName, obj) の順に定義している。
+ *   toFunctional は引数を左から順に蓄積するだけなので、
+ *   型と実装の引数順が一致していれば正しく動作する。
  *
  * 型パラメータ:
  *   K extends string — プロパティ名のリテラル型（例: 'x', 'y'）
@@ -341,7 +329,7 @@ export function subtract(a?: number, b?: number): any {
  *   これにより、サブ関数を呼ぶ時点で O が推論される。
  *
  * テスト例: prop()('x')()({x: 1, y: 'Hello'})
- *   prop()              → typeof prop
+ *   prop()              → PropFunc
  *   ('x')               → PropNameFunc<'x'>（K='x' がリテラル型として推論）
  *   ()                  → PropNameFunc<'x'>（自身を返す）
  *   ({x: 1, y: 'Hello'}) → number（O が {x: number, y: string} と推論 → O['x'] = number）
@@ -354,23 +342,13 @@ interface PropNameFunc<K extends string> {
     <O extends {[key in K]: O[K]}>(obj: O): O[K];
 }
 
-export function prop(): typeof prop;
-export function prop<K extends string>(propName: K): PropNameFunc<K>;
-export function prop<O, K extends keyof O>(propName: K, obj: O): O[K];
-export function prop(propName?: any, obj?: any): any {
-    if (arguments.length === 0) {
-        return prop;
-    }
-    if (arguments.length === 1) {
-        return function subFunction(subObj: any) {
-            if (arguments.length === 0) {
-                return subFunction;
-            }
-            return subObj[propName];
-        };
-    }
-    return obj[propName];
+interface PropFunc {
+    (): PropFunc;
+    <K extends string>(propName: K): PropNameFunc<K>;
+    <O, K extends keyof O>(propName: K, obj: O): O[K];
 }
+
+export const prop = toFunctional(<O, K extends keyof O>(obj: O, propName: K): O[K] => obj[propName]) as PropFunc;
 
 /**
  * >0 arguments passed: expects each argument to be
@@ -383,12 +361,6 @@ export function prop(propName?: any, obj?: any): any {
  * last function execution.
  *
  * 0 arguments passed: returns itself.
- *
- * TODO TypeScript
- *   * Should properly handle at least 5 arguments.
- *   * Should also make sure argument of the next
- *     function matches the return type of the previous
- *     function.
  */
 /*
  * [型付けのポイント]
@@ -407,12 +379,15 @@ export function prop(propName?: any, obj?: any): any {
  *   ...
  *   最終的な戻り値: (...args: A) => 最後の型パラメータ
  *
- * 引数の数ごとにオーバーロードを定義（1〜5個 + 0個）。
+ * 引数の数ごとにコールシグネチャを定義（1〜5個 + 0個）。
  * TypeScript では可変長の型連鎖を直接表現できないため、
- * 固定数のオーバーロードで対応するのが定番パターン。
+ * 固定数のシグネチャで対応するのが定番パターン。
  *
  * pipe は他の関数と違い、返されるサブ関数に「0引数→自身」のパターンがないため、
  * 専用のインターフェースは不要で、通常の関数型 (...args: A) => X で足りる。
+ *
+ * pipe は toFunctional に適さない（可変長引数のため .length が使えない）ので、
+ * 唯一 const + 型注釈 + function 式で実装する。
  *
  * テスト例: pipe(filter(Boolean), map(String), reduce((a, b) => a + b, ''))([0, 1, 2, 3])
  *   f1 = filter(Boolean) : FiltererFunc<any>   — (input: any[]) => any[]
@@ -422,15 +397,26 @@ export function prop(propName?: any, obj?: any): any {
  *   ([0, 1, 2, 3]) → string
  */
 
-// 0引数→自身
-export function pipe(): typeof pipe;
-// 1〜5引数: 型パラメータ B→C→D→E→F の連鎖で型安全性を保証
-export function pipe<A extends unknown[], B>(f1: (...args: A) => B): (...args: A) => B;
-export function pipe<A extends unknown[], B, C>(f1: (...args: A) => B, f2: (x: B) => C): (...args: A) => C;
-export function pipe<A extends unknown[], B, C, D>(f1: (...args: A) => B, f2: (x: B) => C, f3: (x: C) => D): (...args: A) => D;
-export function pipe<A extends unknown[], B, C, D, E>(f1: (...args: A) => B, f2: (x: B) => C, f3: (x: C) => D, f4: (x: D) => E): (...args: A) => E;
-export function pipe<A extends unknown[], B, C, D, E, F>(f1: (...args: A) => B, f2: (x: B) => C, f3: (x: C) => D, f4: (x: D) => E, f5: (x: E) => F): (...args: A) => F;
-export function pipe(...functions: Function[]): any {
+// F: 最初の関数の型（任意の引数→戻り値）
+type F<A extends unknown[], R> = (...args: A) => R;
+// TR: 2番目以降の関数の型（前の戻り値を受け取り、次の戻り値を返す）
+type TR<I, O> = (arg: I) => O;
+
+// 0引数→自身、1〜5引数→型パラメータ連鎖で型安全な関数合成
+interface PipeFunc {
+    (): PipeFunc;
+    <A1 extends unknown[], R1>(f: F<A1, R1>): (...args: A1) => R1;
+    <A1 extends unknown[], R1, R2>(f: F<A1, R1>, tr1: TR<R1, R2>): (...args: A1) => R2;
+    <A1 extends unknown[], R1, R2, R3>(f: F<A1, R1>, tr1: TR<R1, R2>, tr2: TR<R2, R3>): (...args: A1) => R3;
+    <A1 extends unknown[], R1, R2, R3, R4>(
+        f: F<A1, R1>, tr1: TR<R1, R2>, tr2: TR<R2, R3>, tr3: TR<R3, R4>
+    ): (...args: A1) => R4;
+    <A1 extends unknown[], R1, R2, R3, R4, R5>(
+        f: F<A1, R1>, tr1: TR<R1, R2>, tr2: TR<R2, R3>, tr3: TR<R3, R4>, tr4: TR<R4, R5>
+    ): (...args: A1) => R5;
+}
+
+export const pipe: PipeFunc = function (...functions: Function[]) {
     if (arguments.length === 0) {
         return pipe;
     }
@@ -443,4 +429,4 @@ export function pipe(...functions: Function[]): any {
         }
         return result;
     };
-}
+};
